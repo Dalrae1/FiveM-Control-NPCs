@@ -273,6 +273,15 @@ end
 function drawThing(coords)
     DrawBox(coords-0.5, coords+0.5, 255, 0, 0, 255)
 end
+local Keys = {}
+function Keys.Register(Controls, ControlName, Description, Action)
+    RegisterKeyMapping(string.format('keys-%s', ControlName), Description, "keyboard", Controls)
+    RegisterCommand(string.format('keys-%s', ControlName), function()
+        if (Action ~= nil) then
+            Action();
+        end
+    end, false)
+end
 function getEntityAimingAt()
     local _, freeAimEntity = GetEntityPlayerIsFreeAimingAt(PlayerId()) 
     if IsEntityAPed(freeAimEntity) or IsEntityAVehicle(freeAimEntity) then
@@ -294,9 +303,9 @@ local cameraTweenTime = 0
 local _, group1Hash = AddRelationshipGroup("group1")
 local _, group2Hash = AddRelationshipGroup("group2")
 SetRelationshipBetweenGroups(0, group1Hash, group2Hash)
-CreateThread(function()
-    while true do
-        if IsControlJustPressed(0, 36) and GetGameTimer()-lastSwitch >= cameraTweenTime+500 then --ctrl
+Keys.Register('LCONTROL', 'LCONTROL', 'Control A Ped', function()
+    CreateThread(function()
+        if GetGameTimer()-lastSwitch >= cameraTweenTime+500 then --ctrl
             for veh in EnumerateVehicles() do
                 if not IsVehicleSeatFree(veh, -1) and not isPlayerPed(GetPedInVehicleSeat(veh, -1)) then
                     SetEntityAsMissionEntity(veh, true, true)
@@ -371,8 +380,7 @@ CreateThread(function()
                 FreezeEntityPosition(PlayerPedId(), false)
             end
         end
-        Wait(1)
-    end
+    end)
 end)
 
 AddEventHandler("onResourceStop", function(name)
