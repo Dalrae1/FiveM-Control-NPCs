@@ -1,5 +1,21 @@
 -- Created by Dalrae
 
+--[[CONFIG]]
+local Config = {}
+Config.RandomSwitchingExcludeAnimals = true -- Excludes animals from being switched to if the player is not aiming/looking at a ped.
+Config.SpawnAsCurrentPed = true -- Spawns as the player's current ped. Disable to make them switch back to their original ped.
+Config.UseBaseEvents = false -- Use the "baseevents" resource for detecting if a player died.
+
+Config.UseLookDirection = true -- Use the camera direction if the player is not aiming with a gun.
+Config.LookRayRadius = 1.0 -- The radius to use for the UseLookDirection config value.
+
+Config.SwitchDelay = 500 -- Time (ms) to wait until switching peds again.
+Config.CanAimAtVehicles = true -- If aiming at a vehicle, will switch to the driver of that vehicle. Can still aim at a vehicle and be detected as aiming at the driver though.
+Config.ShowWarningWhenCooldown = true -- Show a message in chat when a player attempts to switch to a ped too fast.
+--[[END CONFIG]]
+
+
+
 function setPedModel(modelHash) -- Sets the player's ped model with the original camera position.
     --local modelHash = GetHashKey(model)
     RequestModel(modelHash)
@@ -15,6 +31,7 @@ function setPedModel(modelHash) -- Sets the player's ped model with the original
     end
     SetPlayerModel(PlayerId(), modelHash)
     SetPedComponentVariation(PlayerPedId(), 0, 0, 0, 2)
+    SetModelAsNoLongerNeeded(modelHash)
 end
 
 local animalPedModels =
@@ -116,7 +133,7 @@ function getRandomPed()
     local numPeds = 0
     for ped in EnumeratePeds() do
         RequestCollisionAtCoord(GetEntityCoords(ped).xyz)
-        if GetEntityCoords(ped).x ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).z ~= -100 and not isPlayerPed(ped) and not isAnimalPed(ped) and GetDistanceBetweenCoords(GetEntityCoords(PlayerPedId()), GetEntityCoords(ped)) < 200 then
+        if GetEntityCoords(ped).x ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).z ~= -100 and not isPlayerPed(ped) and (Config.RandomSwitchingExcludeAnimals and not isAnimalPed(ped) or true) and GetDistanceBetweenCoords(GetEntityCoords(PlayerPedId()), GetEntityCoords(ped)) < 200 then
             numPeds = numPeds+1
         end
     end
@@ -125,7 +142,7 @@ function getRandomPed()
         local curPed = 0
         chosenPed = nil
         for ped in EnumeratePeds() do
-            if GetEntityCoords(ped).x ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).z ~= -100 and not isPlayerPed(ped) and not isAnimalPed(ped) and GetDistanceBetweenCoords(GetEntityCoords(PlayerPedId()), GetEntityCoords(ped)) < 200 then
+            if GetEntityCoords(ped).x ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).z ~= -100 and not isPlayerPed(ped) and (Config.RandomSwitchingExcludeAnimals and not isAnimalPed(ped) or true) and GetDistanceBetweenCoords(GetEntityCoords(PlayerPedId()), GetEntityCoords(ped)) < 200 then
                 curPed = curPed+1
                 if curPed == stopAt then
                     return ped
@@ -286,10 +303,10 @@ function getEntityAimingAt()
     local _, freeAimEntity = GetEntityPlayerIsFreeAimingAt(PlayerId()) 
     if IsEntityAPed(freeAimEntity) or IsEntityAVehicle(freeAimEntity) then
         return freeAimEntity
-    else
+    elseif Config.UseLookDirection then
         local camForwardVector = getDirectionVectorFromHeading(GetGameplayCamRot().z, GetGameplayCamRot().x)
         local pedOrVehicle = IsPedInAnyVehicle(PlayerPedId()) and GetVehiclePedIsIn(PlayerPedId()) or PlayerPedId()
-        local i = StartShapeTestCapsule((GetGameplayCamCoord()+(camForwardVector*5)).xyz, (GetGameplayCamCoord()+(camForwardVector*1000.0)).xyz, 1.0, 10, pedOrVehicle, 7)
+        local i = StartShapeTestCapsule((GetGameplayCamCoord()+(camForwardVector*5)).xyz, (GetGameplayCamCoord()+(camForwardVector*1000.0)).xyz, Config.LookRayRadius, 10, pedOrVehicle, 7)
         local a, hit, endCoords,surface, material,entity = GetShapeTestResultIncludingMaterial(i)
         if hit and DoesEntityExist(entity) then
             return entity
@@ -303,9 +320,45 @@ local cameraTweenTime = 0
 local _, group1Hash = AddRelationshipGroup("group1")
 local _, group2Hash = AddRelationshipGroup("group2")
 SetRelationshipBetweenGroups(0, group1Hash, group2Hash)
+local originalPedModel
+CreateThread(function()
+    repeat Wait(0) until DoesEntityExist(PlayerPedId())
+    originalPedModel = GetEntityModel(PlayerPedId())
+    RequestModel(originalPedModel) -- To keep the ped in ram
+end)
+
+if not Config.SpawnAsCurrentPed then
+    if Config.UseBaseEvents then
+        RegisterNetEvent("baseevents:onPlayerDied", function()
+            repeat Wait(0) until not IsEntityDead(PlayerPedId())
+            setPedModel(originalPedModel)
+        end)
+        RegisterNetEvent("baseevents:onPlayerKilled", function()
+            repeat Wait(0) until not IsEntityDead(PlayerPedId())
+            setPedModel(originalPedModel)
+        end)
+    else
+        local deathDeb = false
+        CreateThread(function()
+            while true do
+                Wait(100)
+                if IsEntityDead(PlayerPedId()) then
+                    if deathDeb then
+                        deathDeb = false
+                        repeat Wait(0) until not IsEntityDead(PlayerPedId())
+                        setPedModel(originalPedModel)
+                    end
+                else
+                    deathDeb = true
+                end
+            end
+        end)
+    end
+end
 Keys.Register('LCONTROL', 'LCONTROL', 'Control A Ped', function()
     CreateThread(function()
-        if GetGameTimer()-lastSwitch >= cameraTweenTime+500 then --ctrl
+        local cooldown = (GetGameTimer()-lastSwitch) - (cameraTweenTime+Config.SwitchDelay)
+        if cooldown >= 0 then
             for veh in EnumerateVehicles() do
                 if not IsVehicleSeatFree(veh, -1) and not isPlayerPed(GetPedInVehicleSeat(veh, -1)) then
                     SetEntityAsMissionEntity(veh, true, true)
@@ -320,9 +373,11 @@ Keys.Register('LCONTROL', 'LCONTROL', 'Control A Ped', function()
             --Is the entity a ped, or a vehicle with a driver, or is the player not free aiming
             if (entity and DoesEntityExist(entity) and (IsEntityAPed(entity) or IsEntityAVehicle(entity) and not IsVehicleSeatFree(entity, -1)) or not IsPlayerFreeAiming(PlayerId())) then
                 lastSwitch = GetGameTimer()
-                local coordsToCheck = GetEntityCoords(entity)
                 local ped
                 if IsEntityAVehicle(entity) then
+                    if not Config.CanAimAtVehicles then
+                        return
+                    end
                     if GetPedInVehicleSeat(entity, -1) then
                         ped = GetPedInVehicleSeat(entity, -1)
                     end
@@ -332,9 +387,8 @@ Keys.Register('LCONTROL', 'LCONTROL', 'Control A Ped', function()
                 if not DoesEntityExist(ped) then
                     ped = getRandomPed()
                 end
-            
-                local oldPedModel = GetEntityModel(PlayerPedId())
-                RequestModel(oldPedModel) -- To keep the ped in ram
+                
+                
                 local vector1 = GetGameplayCamCoord()
                 local vector2 = GetEntityCoords(PlayerPedId())
                 recreatePed(PlayerPedId())
@@ -379,12 +433,14 @@ Keys.Register('LCONTROL', 'LCONTROL', 'Control A Ped', function()
                 GiveWeaponToPed(PlayerPedId(), GetHashKey("WEAPON_PISTOL"), 100, false, true)
                 FreezeEntityPosition(PlayerPedId(), false)
             end
+        elseif Config.ShowWarningWhenCooldown then
+            TriggerEvent("chatMessage", "^*^8You need to wait "..math.abs(cooldown).." ms before switching peds again.")
         end
     end)
 end)
 
 AddEventHandler("onResourceStop", function(name)
     if name == GetCurrentResourceName() then
-        setPedModel(oldPedModel)
+        setPedModel(originalPedModel)
     end
 end)
