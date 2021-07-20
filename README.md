@@ -2,6 +2,9 @@
 Fun script I wrote to give the illusion of controlling NPCs
 
 Video: https://www.youtube.com/watch?v=WauEQtr8qko
+Player Ped Video: https://www.youtube.com/watch?v=2IwNF13MEfw
+
+General config values are at the top of client.lua, and permission config values are at the top of the server.lua.
 
 To use it, simply press ctrl.
 
