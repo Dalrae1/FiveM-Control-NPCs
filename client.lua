@@ -12,6 +12,8 @@ Config.LookRayRadius = 1.0 -- The radius to use for the UseLookDirection config 
 Config.SwitchDelay = 500 -- Time (ms) to wait until switching peds again.
 Config.CanAimAtVehicles = true -- If aiming at a vehicle, will switch to the driver of that vehicle. Can still aim at a vehicle and be detected as aiming at the driver though.
 Config.ShowWarningWhenCooldown = true -- Show a message in chat when a player attempts to switch to a ped too fast.
+
+Config.CanControlPlayers = true -- If attempting to switch peds to a player, it will control that player, probably confusing the shit out of them.
 --[[END CONFIG]]
 
 
@@ -34,7 +36,7 @@ function setPedModel(modelHash) -- Sets the player's ped model with the original
     SetModelAsNoLongerNeeded(modelHash)
 end
 
-local animalPedModels =
+local animalPedModels = --[[ Doesn't include water animals since they're quite rare]]
 {
     {"a_c_boar", "Boar"},
     {"a_c_cat_01", "Cat"},
@@ -123,7 +125,7 @@ end
 function isPlayerPed(ped)
     for _,player in pairs(GetActivePlayers()) do
         if GetPlayerPed(player) == ped then
-            return true
+            return player
         end
     end
     return false
@@ -133,7 +135,7 @@ function getRandomPed()
     local numPeds = 0
     for ped in EnumeratePeds() do
         RequestCollisionAtCoord(GetEntityCoords(ped).xyz)
-        if GetEntityCoords(ped).x ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).z ~= -100 and not isPlayerPed(ped) and (Config.RandomSwitchingExcludeAnimals and not isAnimalPed(ped)) and GetDistanceBetweenCoords(GetEntityCoords(PlayerPedId()), GetEntityCoords(ped)) < 200 then
+        if GetEntityCoords(ped).x ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).z ~= -100 and (not isPlayerPed(ped) or Config.CanControlPlayers) and (Config.RandomSwitchingExcludeAnimals and not isAnimalPed(ped)) and GetDistanceBetweenCoords(GetEntityCoords(PlayerPedId()), GetEntityCoords(ped)) < 200 then
             numPeds = numPeds+1
         end
     end
@@ -142,7 +144,7 @@ function getRandomPed()
         local curPed = 0
         chosenPed = nil
         for ped in EnumeratePeds() do
-            if GetEntityCoords(ped).x ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).z ~= -100 and not isPlayerPed(ped) and (Config.RandomSwitchingExcludeAnimals and not isAnimalPed(ped)) and GetDistanceBetweenCoords(GetEntityCoords(PlayerPedId()), GetEntityCoords(ped)) < 200 then
+            if GetEntityCoords(ped).x ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).z ~= -100 and (not isPlayerPed(ped) or Config.CanControlPlayers) and (Config.RandomSwitchingExcludeAnimals and not isAnimalPed(ped)) and GetDistanceBetweenCoords(GetEntityCoords(PlayerPedId()), GetEntityCoords(ped)) < 200 then
                 curPed = curPed+1
                 if curPed == stopAt then
                     return ped
@@ -301,14 +303,14 @@ function Keys.Register(Controls, ControlName, Description, Action)
 end
 function getEntityAimingAt()
     local _, freeAimEntity = GetEntityPlayerIsFreeAimingAt(PlayerId()) 
-    if IsEntityAPed(freeAimEntity) or IsEntityAVehicle(freeAimEntity) and not isPlayerPed(entity) then
+    if IsEntityAPed(freeAimEntity) or IsEntityAVehicle(freeAimEntity) and (not isPlayerPed(entity) or Config.CanControlPlayers) then
         return freeAimEntity
     elseif Config.UseLookDirection then
         local camForwardVector = getDirectionVectorFromHeading(GetGameplayCamRot().z, GetGameplayCamRot().x)
         local pedOrVehicle = IsPedInAnyVehicle(PlayerPedId()) and GetVehiclePedIsIn(PlayerPedId()) or PlayerPedId()
         local i = StartShapeTestCapsule((GetGameplayCamCoord()+(camForwardVector*5)).xyz, (GetGameplayCamCoord()+(camForwardVector*1000.0)).xyz, Config.LookRayRadius, 10, pedOrVehicle, 7)
         local a, hit, endCoords,surface, material,entity = GetShapeTestResultIncludingMaterial(i)
-        if hit and DoesEntityExist(entity) and not isPlayerPed(entity) then
+        if hit and DoesEntityExist(entity) and (not isPlayerPed(entity) or Config.CanControlPlayers) then
             return entity
         end
     end
@@ -330,14 +332,14 @@ RegisterNetEvent("DalraeTakeControl:RecievePermissions", function(canUse)
                     if originalPedModel then
                         repeat Wait(0) until not IsEntityDead(PlayerPedId())
                         setPedModel(originalPedModel.ModelHash)
-                        setPedVariations(originalPedModel.Variations)
+                        setPedVariations(PlayerPedId(), originalPedModel.Variations)
                     end
                 end)
                 RegisterNetEvent("baseevents:onPlayerKilled", function()
                     if originalPedModel then
                         repeat Wait(0) until not IsEntityDead(PlayerPedId())
                         setPedModel(originalPedModel.ModelHash)
-                        setPedVariations(originalPedModel.Variations)
+                        setPedVariations(PlayerPedId(), originalPedModel.Variations)
                     end
                 end)
             else
@@ -351,7 +353,7 @@ RegisterNetEvent("DalraeTakeControl:RecievePermissions", function(canUse)
                                 if originalPedModel then
                                     repeat Wait(0) until not IsEntityDead(PlayerPedId())
                                     setPedModel(originalPedModel.ModelHash)
-                                    setPedVariations(originalPedModel.Variations)
+                                    setPedVariations(PlayerPedId(), originalPedModel.Variations)
                                 end
                             end
                         else
@@ -362,6 +364,7 @@ RegisterNetEvent("DalraeTakeControl:RecievePermissions", function(canUse)
             end
         end
         local switchedPeds = false
+        local isControllingPlayer = false
         Keys.Register('LCONTROL', 'LCONTROL', 'Control A Ped', function()
             CreateThread(function()
                 if not switchedPeds then
@@ -402,11 +405,23 @@ RegisterNetEvent("DalraeTakeControl:RecievePermissions", function(canUse)
                             ped = getRandomPed()
                         end
                         
-                        if DoesEntityExist(ped) and not isPlayerPed(ped) then
+                        if DoesEntityExist(ped) and (not isPlayerPed(ped) or Config.CanControlPlayers) then
+                            
                             lastSwitch = GetGameTimer()
                             local vector1 = GetGameplayCamCoord()
                             local vector2 = GetEntityCoords(PlayerPedId())
-                            recreatePed(PlayerPedId())
+                            if not isControllingPlayer then
+                                recreatePed(PlayerPedId())
+                            else
+                                TriggerServerEvent("DalraeTakeControl:StopTakeControlPlayer")
+                            end
+
+                            if isPlayerPed(ped) then
+                                isControllingPlayer = true
+                            else
+                                isControllingPlayer = false
+                            end
+                            
                             RenderScriptCams(false, false, 0, true, false)
                             local cam = CreateCamWithParams("DEFAULT_SCRIPTED_CAMERA", GetGameplayCamCoord(), GetGameplayCamRelativePitch(), 0, GetGameplayCamRot().z, GetGameplayCamFov() * 1.0)
                             SetCamActive(cam, true)
@@ -425,22 +440,32 @@ RegisterNetEvent("DalraeTakeControl:RecievePermissions", function(canUse)
                             if cameraTweenTime > 4000 then cameraTweenTime = 4000 end
                             if cameraTweenTime < 700 then cameraTweenTime = 700 end
                             setPedModel(GetEntityModel(ped))
-                            recreatePed(ped, PlayerPedId())
+                            setPedVariations(PlayerPedId(), getPedVariations(ped))
+                            if isControllingPlayer then
+                                local pedVehicle, seatIndex = getPedVehicle(ped)
+                                TriggerServerEvent("DalraeTakeControl:TakeControlPlayer", GetPlayerServerId(isPlayerPed(ped)), NetworkGetNetworkIdFromEntity(pedVehicle), seatIndex)
+                            else
+                                recreatePed(ped, PlayerPedId())
+                            end
                             local pedVehicle, seatIndex = getPedVehicle(ped)
                             if pedVehicle then
                                 if seatIndex == 0 then
                                     SetPedRelationshipGroupHash(PlayerPedId(), group1Hash)
                                     SetPedRelationshipGroupHash(GetPedInVehicleSeat(pedVehicle, -1), group2Hash)
                                 end
-                                DeleteEntity(ped) --[[ To make it look good on invoking player ]]
-                                TriggerServerEvent("DalraeTakeControl:DeleteEntity", NetworkGetNetworkIdFromEntity(ped))
-                                SetPedIntoVehicle(PlayerPedId(), pedVehicle, seatIndex)
+                                if not isControllingPlayer then
+                                    DeleteEntity(ped) --[[ To make it look good on invoking player ]]
+                                    TriggerServerEvent("DalraeTakeControl:DeleteEntity", NetworkGetNetworkIdFromEntity(ped))
+                                    SetPedIntoVehicle(PlayerPedId(), pedVehicle, seatIndex)
+                                end
                             else
                                 SetEntityCoordsNoOffset(PlayerPedId(), GetEntityCoords(ped).xyz)
                                 SetEntityVelocity(PlayerPedId(), GetEntityVelocity(ped).xyz)
                                 SetEntityHeading(PlayerPedId(), GetEntityHeading(ped))
-                                DeleteEntity(ped) --[[ To make it look good on invoking player ]]
-                                TriggerServerEvent("DalraeTakeControl:DeleteEntity", NetworkGetNetworkIdFromEntity(ped))
+                                if not isControllingPlayer then
+                                    DeleteEntity(ped) --[[ To make it look good on invoking player ]]
+                                    TriggerServerEvent("DalraeTakeControl:DeleteEntity", NetworkGetNetworkIdFromEntity(ped))
+                                end
                             end
                             RenderScriptCams(false, true, cameraTweenTime, true, false)
                             SetCamActive(cam, false)
@@ -459,11 +484,62 @@ RegisterNetEvent("DalraeTakeControl:RecievePermissions", function(canUse)
     end
 end)
 
+RegisterNetEvent("DalraeTakeControl:PutInVehicle", function(vehicleNet, seatIndex)
+    local vehicle = NetworkGetEntityFromNetworkId(vehicleNet)
+    repeat Wait(0) until not DoesEntityExist(GetPedInVehicleSeat(vehicle, seatIndex))
+    SetPedIntoVehicle(PlayerPedId(), vehicle, seatIndex)
+end)
+
+RegisterNetEvent("DalraeTakeControl:TakeControlPlayer", function(player)
+    for _,playerC in pairs(GetActivePlayers()) do
+        if tonumber(GetPlayerServerId(playerC)) == tonumber(player) then
+            player = playerC
+            break
+        end
+    end
+    if player and DoesEntityExist(GetPlayerPed(player)) then
+        local playerPed = GetPlayerPed(player)
+        local oldPlayerModel = GetEntityModel(playerPed)
+        local oldCamRot = GetGameplayCamRot()
+        local vehicle, seat = getPedVehicle(playerPed)
+        NetworkSetInSpectatorMode(true, playerPed)
+        SetGameplayCamRawPitch(oldCamRot.x)
+        SetGameplayCamRawYaw(oldCamRot.z)
+        SetEntityCoordsNoOffset(PlayerPedId(), vector3(0,0,1000))
+        CreateThread(function()
+            Wait(1000)
+            FreezeEntityPosition(PlayerPedId(), true)
+        end)
+        CreateThread(function()
+            local newCoords = GetEntityCoords(GetPlayerPed(player))
+            local newCamRot = GetGameplayCamRot()
+            repeat Wait(0) until DoesEntityExist(GetPlayerPed(player))
+            while DoesEntityExist(GetPlayerPed(player)) and Entity(GetPlayerPed(player)).state.Controlling == GetPlayerServerId(PlayerId()) do
+                newCoords = GetEntityCoords(GetPlayerPed(player))
+                newCamRot = GetGameplayCamRot()
+                vehicle, seat = getPedVehicle(GetPlayerPed(player))
+                RequestCollisionAtCoord(GetEntityCoords(GetPlayerPed(player)))
+                Wait(20)
+            end
+            NetworkSetInSpectatorMode(false)
+            FreezeEntityPosition(PlayerPedId(), false)
+            if DoesEntityExist(vehicle) then
+                repeat Wait(0) until not DoesEntityExist(GetPedInVehicleSeat(vehicle, seat))
+                SetPedIntoVehicle(PlayerPedId(), vehicle, seat)
+            else
+                SetEntityCoordsNoOffset(PlayerPedId(), newCoords)
+            end
+            SetGameplayCamRawPitch(newCamRot.x)
+            SetGameplayCamRawYaw(newCamRot.z)
+        end)
+    end
+end)
+
 AddEventHandler("onResourceStop", function(name)
     if name == GetCurrentResourceName() then
         if originalPedModel then
-            setPedModel(originalPedModel.ModelHash)
-            setPedVariations(originalPedModel.Variations)
+            setPedModel(PlayerPedId(), originalPedModel.ModelHash)
+            setPedVariations(PlayerPedId(), originalPedModel.Variations)
         end
     end
 end)
