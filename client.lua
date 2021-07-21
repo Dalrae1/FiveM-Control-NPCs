@@ -2,6 +2,9 @@
 
 --[[CONFIG]]
 local Config = {}
+Config.GivePistol = true -- Give a pistol to the ped after switching.
+Config.EquipPistol = true -- Automatically equips the pistol for the above config value.
+
 Config.RandomSwitchingExcludeAnimals = true -- Excludes animals from being switched to if the player is not aiming/looking at a ped.
 Config.SpawnAsCurrentPed = true -- Spawns as the player's current ped. Disable to make them switch back to their original ped.
 Config.UseBaseEvents = false -- Use the "baseevents" resource for detecting if a player died.
@@ -35,6 +38,223 @@ function setPedModel(modelHash) -- Sets the player's ped model with the original
     SetPedComponentVariation(PlayerPedId(), 0, 0, 0, 2)
     SetModelAsNoLongerNeeded(modelHash)
 end
+
+local allWeapons = {
+	[-1569615261] = "Unarmed",
+	[2460120199] = "Antique Cavalry Dagger",
+	[2508868239] = "Baseball Bat",
+	[4192643659] = "Bottle",
+	[2227010557] = "Crowbar",
+	[2725352035] = "Fist",
+	[2343591895] = "Flashlight",
+	[1141786504] = "Golf Club",
+	[1317494643] = "Hammer",
+	[4191993645] = "Hatchet",
+	[3638508604] = "Knuckle",
+	[2578778090] = "Knife",
+	[3713923289] = "Machete",
+	[3756226112] = "Switchblade",
+	[1737195953] = "Nightstick",
+	[419712736] = "Pipe Wrench",
+	[3441901897] = "Battle Axe",
+	[2484171525] = "Pool Cue",
+	[940833800] = "Stone Hatchet",
+	[453432689] = "Pistol",
+	[3219281620] = "Pistol MK2",
+	[1593441988] = "Combat Pistol",
+	[584646201] = "AP Pistol",
+	[911657153] = "Stun Gun",
+	[2578377531] = "Pistol .50",
+	[3218215474] = "SNS Pistol",
+	[2285322324] = "SNS Pistol MK2",
+	[3523564046] = "Heavy Pistol",
+	[137902532] = "Vintage Pistol",
+	[1198879012] = "Flare Gun",
+	[3696079510] = "Marksman Pistol",
+	[3249783761] = "Heavy Revolver",
+	[3415619887] = "Heavy Revolver MK2",
+	[2548703416] = "Double Action",
+	[2939590305] = "Up-n-Atomizer",
+	[324215364] = "Micro SMG",
+	[736523883] = "SMG",
+	[2024373456] = "SMG MK2",
+	[4024951519] = "Assault SMG",
+	[171789620] = "Combat PDW",
+	[3675956304] = "Machine Pistol",
+	[3173288789] = "Mini SMG",
+	[1198256469] = "Unholy Hellbringer",
+	[487013001] = "Pump Shotgun",
+	[1432025498] = "Pump Shotgun MK2",
+	[2017895192] = "Sawed-Off Shotgun",
+	[3800352039] = "Assault Shotgun",
+	[2640438543] = "Bullpup Shotgun",
+	[2828843422] = "Musket",
+	[984333226] = "Heavy Shotgun",
+	[4019527611] = "Double Barrel Shotgun",
+	[317205821] = "Sweeper Shotgun",
+	[3220176749] = "Assault Rifle",
+	[961495388] = "Assault Rifle MK2",
+	[2210333304] = "Carbine Rifle",
+	[4208062921] = "Carbine Rifle MK2",
+	[2937143193] = "Advanced Rifle",
+	[3231910285] = "Special Carbine",
+	[2526821735] = "Special Carbine MK2",
+	[2132975508] = "Bullpup Rifle",
+	[2228681469] = "Bullpup Rifle MK2",
+	[1649403952] = "Compact Rifle",
+	[2634544996] = "MG",
+	[2144741730] = "Combat MG",
+	[3686625920] = "Combat MG MK2",
+	[1627465347] = "Gusenberg Sweeper",
+	[100416529] = "Sniper Rifle",
+	[205991906] = "Heavy Sniper",
+	[177293209] = "Heavy Sniper MK2",
+	[3342088282] = "Marksman Rifle",
+	[1785463520] = "Marksman Rifle MK2",
+	[2982836145] = "RPG",
+	[2726580491] = "Grenade Launcher",
+	[1305664598] = "Smoke Grenade Launcher",
+	[1119849093] = "Minigun",
+	[2138347493] = "Firework Launcher",
+	[1834241177] = "Railgun",
+	[1672152130] = "Homing Launcher",
+	[125959754] = "Compact Grenade Launcher",
+	[3056410471] = "Ray Minigun",
+	[2481070269] = "Grenade",
+	[2694266206] = "BZ Gas",
+	[4256991824] = "Smoke Grenade",
+	[1233104067] = "Flare",
+	[615608432] = "Molotov",
+	[741814745] = "Sticky Bomb",
+	[2874559379] = "Proximity Mine",
+	[126349499] = "Snowball",
+	[3125143736] = "Pipe Bomb",
+	[600439132] = "Baseball",
+	[883325847] = "Jerry Can",
+	[101631238] = "Fire Extinguisher",
+	[4222310262] = "Parachute"
+}
+
+local weaponComponents = {
+    ["MK2PistolRegularClip"] = 0x94F42D62,
+    ["MK2PistolExtendedClip"] = 0x5ED6C128,
+    ["MK2PistolFlashLight"] = 0x43FD595B,
+    ["MK2PistolMountedScope"] = 0x8ED4BB70,
+    ["MK2PistolCompensator"] = 0x21E34793,
+    ["MK2SmgExtendedClip"] = 0xB9835B2E,
+    ["MK2SmgSmallScope"] = 0x3DECC7DA,
+    ["MK2SmgMediumScope"] = 0xE502AB6B,
+    ["MK2SmgRegularBarrel"] = 0xD9103EE1,
+    ["MK2SmgHeavyBarrel"] = 0xA564D78B,
+    ["MK2SmgHoloSight"] = 0x9FDB5652,
+    ["MK2AssaultRifleHoloSight"] = 0x420FD713,
+    ["MK2AssaultRifleRegularClip"] = 0x8610343F,
+    ["MK2AssaultRifleExtendedClip"] = 0xD12ACA6F,
+    ["MK2AssaultRifleGrip"] = 0x9D65907A,
+    ["MK2AssaultRifleSmallScope"] = 0x049B2945,
+    ["MK2AssaultRifleMediumScope"] = 0xC66B6542,
+    ["MK2AssaultRifleRegularBarrel"] = 0x43A49D26,
+    ["MK2AssaultRifleHeavyBarrel"] = 0x5646C26A,
+    ["MK2CarbineRifleRegularClip"] = 0x4C7A391E,
+    ["MK2CarbineRifleExtendedClip"] = 0x5DD5DBD5,
+    ["MK2CarbineRifleRegularBarrel"] = 0x833637FF,
+    ["MK2CarbineRifleHeavyBarrel"] = 0x8B3C480B,
+    ["MK2CombatMgRegularClip"] = 0x492B257C,
+    ["MK2CombatMgExtendedClip"] = 0x17DF42E9,
+    ["MK2CombatMgRegularBarrel"] = 0xC34EF234,
+    ["MK2CombatMgHeavyBarrel"] = 0xB5E2575B,
+    ["MK2SniperRegularClip"] = 0xFA1E1A28,
+    ["MK2SniperExtendedClip"] = 0x2CD8FF9D,
+    ["MK2SniperScopeLarge"] = 0x82C10383,
+    ["MK2SniperScopeNightVision"] = 0xB68010B0,
+
+    ["MK2SniperScopeThermal"] = 0x2E43DA41,
+    ["MK2SniperSuppressor"] = 0xAC42DF71,
+    ["MK2SniperRegularBarrel"] = 0x909630B7,
+    ["MK2SniperHeavyBarrel"] = 0x108AB09E,
+    ["MachinePistolRegularClip"] = 0x476E85FF,
+    ["MachinePistolExtended"] = 0xB92C6979,
+    ["CompactRifleRegularClip"] = 0x513F0A63,
+    ["CompactRifleExtendedClip"] = 0x59FF9BF8,
+    ["AdvancedSniperScope"] = 0xBC54DA77,
+    ["AP_PistolExtendedClip"] = 0x249A17D5,
+    ["HeavyPistolExtendedClip"] = 0x64F9C62B,
+    ["S_N_S_PistolRegularClip"] = 0xF8802ED9,
+    ["S_N_S_PistolExtendedClip"] = 0x7B0033B3,
+    ["S_N_S_PistolEtchedWoodGrip"] = 0x8033ECAF,
+    ["SpecialCarbineExtendedClip"] = 0x7C8BD10E,
+    ["AssaultShotgunExtendedClip"] = 0x86BD7F72,
+    ["AdvancedRifleExtendedClip"] = 0x8EC1C979,
+    ["BullpupRifleExtendedClip"] = 0xB3688B0F,
+    ["CombatM_G_ExtendedClip"] = 0xD6C59CD6,
+    ["PistolExtendedClip"] = 0xED265A1C,
+    ["CombatPistolExtendedClip"] = 0xD67B4F2D,
+    ["point50PistolExtendedClip"] = 0xD9D3AC92,
+    ["VintagePistolRegularClip"] = 0x45A3B6BB,
+    ["VintagePistolExtendedClip"] = 0x33BA12E8,
+    ["MicroS_M_G_ExtendedClip"] = 0x10E6BA2B,
+    ["S_M_G_ExtendedClip"] = 0x350966FB,
+    ["AssaultS_M_G_ExtendedClip"] = 0xBB46E417,
+    ["CombatP_D_W_RegularClip"] = 0x4317F19E,
+    ["CombatP_D_W_ExtendedClip"] = 0x334A5203,
+    ["M_G_ExtendedClip"] = 0x82158B47,
+    ["GusenbergRegularClip"] = 0x1CE5A6A5,
+    ["GusenbergExtendedClip"] = 0xEAC8C270,
+    ["AssaultRifleExtendedClip"] = 0xB1214F9B,
+    ["CarbineRifleExtendedClip"] = 0x91109691,
+    ["MarksmanRifleExtendedClip"] = 0xCCFD2AC5,
+    ["HeavyShotgunRegularClip"] = 0x324F2D5F,
+    ["HeavyShotgunExtendedClip"] = 0x971CF6FD,
+    ["Pistol_Micro_S_M_G_Flashlight"] = 0x359B7AAE,
+    ["RifleShotgunFlashlight"] = 0x7BC4CDDC,
+
+    ["RifleShotgunGrip"] = 0xC164F53,
+    ["BullpupRifleRegularClip"] = 0xC5A12F80,
+    ["SpecialCarbineRegularClip"] = 0xC6C7E581,
+    ["HeavyPistolRegularClip"] = 0xD4A969A,
+    ["CombatM_G_RegularClip"] = 0xE1FFB34A,
+    ["MicroS_M_G_RifleScope"] = 0x9D2FBF29,
+    ["Carbine_Combat_M_G_Scope"] = 0xA0D89C42,
+    ["P_D_W_Rifle_Grenade_Scope"] = 0xAA2C45B4,
+    ["SniperScope"] = 0xD2443DDC,
+    ["S_M_G_Scope"] = 0x3CC6BA57,
+    ["M_G_Scope"] = 0x3C00AFED,
+    ["PistolSupressor"] = 0x65EA7EBB,
+    ["Rifle_ShotgunSuppressor"] = 0x837445AA,
+    ["point50Pistol_MicroS_M_G_Assault_S_M_G_Rifle_Suppressor"] = 0xA73D4664,
+    ["Combat_A_P_Heavy_VintagePistol_Suppressor"] = 0xC304849A,
+    ["PumpShotgunSuppressor"] = 0xE608B35E,
+    ["SMG_YusufAmirFinish"] = 0x27872C90,
+    ["Pistol_YusufAmirFinish"] = 0xD7391086,
+    ["AP_Pistol_GildedGunMetalFinish"] = 0x9B76C72C,
+    ["MicroSMG_YusufAmirFinish"] = 0x487AAE09,
+    ["SawnOffShotgun_GildedGunMetalFinish"] = 0x85A64DF9,
+    ["AdvancedRifle_GildedGunMetalFinish"] = 0x377CD377,
+    ["CarbineRifle_YusufAmirFinish"] = 0xD89B9658,
+    ["AssaultRifle_YusufAmirFinish"] = 0x4EAD7533,
+    ["SniperRifle_EtchedWoodGripFinish"] = 0x4032B5E7,
+    ["point50Pistol_PlatinumPearlDeluxeFinish"] = 0x77B8AB2F,
+    ["HeavyPistol_EtchedWoodGripFinish"] = 0x7A6A7B7B,
+    ["MarksmanRifle_YusufAmirFinish"] = 0x161E9241,
+    ["SniperRifleUnknown"] = 0x9BC64089,
+    ["MiniSMGRegularClip"] = 0x84C8B2D3,
+    ["MiniSMGExtendedClip"] = 0x937ED0B7,
+    ["RevolverBoss"] = 0x16EE3040,
+    ["RevolverGoon"] = 0x9493B80D,
+    ["KnuckleDusterPlain"] = 0xF3462F33,
+    ["KnuckleDusterPimp"] = 0xC613F685,
+    ["KnuckleDusterBallas"] = 0xEED9FD63,
+    ["KnuckleDusterDollar"] = 0x50910C31,
+    ["KnuckleDusterDiamond"] = 0x9761D9DC,
+    ["KnuckleDusterHate"] = 0x7DECFE30,
+    ["KnuckleDusterLove"] = 0x3F4E8AA6,
+    ["KnuckleDusterPlayer"] = 0x8B808BB,
+    ["KnuckleDusterKing"] = 0xE28BABEF,
+    ["KnuckleDusterVago"] = 0x7AF3F785,
+    ["SwitchBladeBase"] = 0x9137A500,
+    ["SwitchBladeMod1"] = 0x5B3E7DB6,
+    ["SwitchBladeMod2"] = 0xE7939662
+}
 
 local animalPedModels = --[[ Doesn't include water animals since they're quite rare]]
 {
@@ -135,7 +355,7 @@ function getRandomPed()
     local numPeds = 0
     for ped in EnumeratePeds() do
         RequestCollisionAtCoord(GetEntityCoords(ped).xyz)
-        if GetEntityCoords(ped).x ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).z ~= -100 and (not isPlayerPed(ped) or Config.CanControlPlayers) and (Config.RandomSwitchingExcludeAnimals and not isAnimalPed(ped)) and GetDistanceBetweenCoords(GetEntityCoords(PlayerPedId()), GetEntityCoords(ped)) < 200 then
+        if GetEntityCoords(ped).x ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).z ~= -100 and (not isPlayerPed(ped) or Config.CanControlPlayers) and ped ~= PlayerPedId() and (Config.RandomSwitchingExcludeAnimals and not isAnimalPed(ped)) and GetDistanceBetweenCoords(GetEntityCoords(PlayerPedId()), GetEntityCoords(ped)) < 200 then
             numPeds = numPeds+1
         end
     end
@@ -144,7 +364,7 @@ function getRandomPed()
         local curPed = 0
         chosenPed = nil
         for ped in EnumeratePeds() do
-            if GetEntityCoords(ped).x ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).z ~= -100 and (not isPlayerPed(ped) or Config.CanControlPlayers) and (Config.RandomSwitchingExcludeAnimals and not isAnimalPed(ped)) and GetDistanceBetweenCoords(GetEntityCoords(PlayerPedId()), GetEntityCoords(ped)) < 200 then
+            if GetEntityCoords(ped).x ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).z ~= -100 and (not isPlayerPed(ped) or Config.CanControlPlayers) and ped ~= PlayerPedId() and  (Config.RandomSwitchingExcludeAnimals and not isAnimalPed(ped)) and GetDistanceBetweenCoords(GetEntityCoords(PlayerPedId()), GetEntityCoords(ped)) < 200 then
                 curPed = curPed+1
                 if curPed == stopAt then
                     return ped
@@ -152,7 +372,7 @@ function getRandomPed()
             end
         end
     end
-    return PlayerPedId()
+    return false
 end
 function getPedVehicle(ped)
     if IsPedInAnyVehicle(ped) then
@@ -165,6 +385,34 @@ function getPedVehicle(ped)
         end
     end
     return false
+end
+
+function getPedWeapons(ped, excludePistol)
+    local pedWeapons = {}
+    for weaponHash, weaponName in pairs(allWeapons) do
+        if HasPedGotWeapon(ped, weaponHash) then
+            if not (excludePistol and weaponHash == GetHashKey("WEAPON_PISTOL")) then
+                table.insert(pedWeapons, {
+                    ["Hash"] = weaponHash,
+                    ["Name"] = weaponName,
+                    ["Ammo"] = GetAmmoInPedWeapon(ped, weaponHash),
+                    ["ClipAmmo"] = GetAmmoInClip(ped, weaponHash),
+                    ["TintIndex"] = GetPedWeaponTintIndex(ped, weaponHash),
+                    ["Components"] = {}
+                })
+            end
+        end
+    end
+    for i,weapon in pairs(pedWeapons) do
+        for _,componentHash in pairs(weaponComponents) do
+            if DoesWeaponTakeWeaponComponent(weapon.Hash, componentHash) and IsPedWeaponComponentActive(ped, weapon.Hash, componentHash) then
+                table.insert(pedWeapons[i].Components, {
+                    ["Hash"] = componentHash
+                })
+            end
+        end
+    end
+    return pedWeapons
 end
 
 function getPedVariations(ped)
@@ -219,6 +467,17 @@ function getPedVariations(ped)
     return pedVariations
 end
 
+function giveWeaponsToPed(ped, weapons)
+    for _,weapon in pairs(weapons) do
+        GiveWeaponToPed(ped, weapon.Hash)
+        SetPedAmmo(ped, weapon.Hash, weapon.Ammo)
+        SetAmmoInClip(ped, weapon.Hash, weapon.ClipAmmo)
+        for _,component in pairs(weapon.Components) do
+            GiveWeaponComponentToPed(ped, weapon.Hash, component.Hash)
+        end
+    end
+end
+
 function setPedVariations(ped, pedVariations)
     SetPedHeadBlendData(ped, pedVariations.HeadBlend)
     SetPedEyeColor(ped, pedVariations.EyeColor)
@@ -242,12 +501,14 @@ function recreatePed(ped, newPed)
     local isReplacing = true
     if not newPed then
         isReplacing = false
-        newPed = CreatePed(true, GetEntityModel(ped), GetEntityCoords(PlayerPedId()).xyz, GetEntityHeading(PlayerPedId()), true, true)
+        newPed = CreatePed(true, GetEntityModel(ped), GetEntityCoords(ped).xyz, GetEntityHeading(ped), true, true)
         SetEntityAsMissionEntity(newPed, true, true)
     end
+    SetEntityHealth(newPed, GetEntityHealth(ped))
+    giveWeaponsToPed(newPed, getPedWeapons(ped, didntHavePistol))
     setPedVariations(newPed, getPedVariations(ped))
     
-    SetEntityCoordsNoOffset(newPed, GetEntityCoords(PlayerPedId()).xyz)
+    SetEntityCoordsNoOffset(newPed, GetEntityCoords(ped).xyz)
     if not isReplacing then
         local pedVehicle, seatIndex = getPedVehicle(ped)
         if pedVehicle then
@@ -269,28 +530,6 @@ function getDirectionVectorFromHeading(heading, pitch)
     heading = heading-270
     pitch = pitch
     return vector3(math.cos(math.rad(heading))*math.cos(math.rad(pitch)), math.sin(math.rad(heading))*math.cos(math.rad(pitch)), math.sin(math.rad(pitch)))
-end
-function createCamForPed(ped)
-    RequestCollisionAtCoord(GetEntityCoords(ped).xyz)
-    local pitch, heading, zoom = GetGameplayCamRelativePitch(), GetGameplayCamRot().z, -4.25
-    local forwardVector, rightVector, upVector = GetEntityMatrix(ped)
-    local camVector = getDirectionVectorFromHeading(heading, pitch)
-    local headPos = GetEntityCoords(ped)+vector3(0,0,0.55)+(getDirectionVectorFromHeading(heading+90, 0)*-0.5)--GetPedBoneCoords(ped, 0x796E)
-    --local cam = CreateCamWithParams("DEFAULT_SCRIPTED_CAMERA", GetGameplayCamCoord(), GetGameplayCamRelativePitch(), 0, GetGameplayCamRot().z, GetGameplayCamFov() * 1.0)
-    local cam = CreateCamWithParams("DEFAULT_SCRIPTED_CAMERA", headPos+(camVector*zoom), pitch, 0, heading, GetGameplayCamFov() * 1.0)
-    return cam
-end
-function dot(coord1, coord2)
-    return coord1.x*coord2.x+coord1.y*coord2.y
-end
-function cross(coord1, coord2)
-    return coord1.x*coord2.y-coord1.y*coord2.x;
-end
-function getAngleBetweenCoords(coord1, coord2)
-    return math.atan2(cross(coord1,coord2), dot(coord1,coord2))
-end
-function drawThing(coords)
-    DrawBox(coords-0.5, coords+0.5, 255, 0, 0, 255)
 end
 local Keys = {}
 function Keys.Register(Controls, ControlName, Description, Action)
@@ -441,6 +680,8 @@ RegisterNetEvent("DalraeTakeControl:RecievePermissions", function(canUse)
                             if cameraTweenTime < 700 then cameraTweenTime = 700 end
                             setPedModel(GetEntityModel(ped))
                             setPedVariations(PlayerPedId(), getPedVariations(ped))
+                            SetEntityHealth(PlayerPedId(), GetEntityHealth(ped))
+                            giveWeaponsToPed(PlayerPedId(), getPedWeapons(ped))
                             if isControllingPlayer then
                                 local pedVehicle, seatIndex = getPedVehicle(ped)
                                 TriggerServerEvent("DalraeTakeControl:TakeControlPlayer", GetPlayerServerId(isPlayerPed(ped)), NetworkGetNetworkIdFromEntity(pedVehicle), seatIndex)
@@ -470,7 +711,10 @@ RegisterNetEvent("DalraeTakeControl:RecievePermissions", function(canUse)
                             RenderScriptCams(false, true, cameraTweenTime, true, false)
                             SetCamActive(cam, false)
                             DestroyCam(cam)
-                            GiveWeaponToPed(PlayerPedId(), GetHashKey("WEAPON_PISTOL"), 100, false, true)
+                            if Config.GivePistol and not isAnimalPed(PlayerPedId()) then
+                                didntHavePistol = not HasPedGotWeapon(PlayerPedId(), GetHashKey("WEAPON_PISTOL"))
+                                GiveWeaponToPed(PlayerPedId(), GetHashKey("WEAPON_PISTOL"), 100, false, Config.EquipPistol)
+                            end
                             FreezeEntityPosition(PlayerPedId(), false)
                         else
                             TriggerEvent("chatMessage", "^*^8No available peds are around you.")
