@@ -2,6 +2,7 @@
 
 --[[CONFIG]]
 local Config = {}
+Config.Debug = false -- Adds debugging info such as: Highlighting entities and number of valid/invalid peds
 Config.GivePistol = true -- Give a pistol to the ped after switching.
 Config.EquipPistol = true -- Automatically equips the pistol for the above config value.
 
@@ -17,12 +18,12 @@ Config.CanAimAtVehicles = true -- If aiming at a vehicle, will switch to the dri
 Config.ShowWarningWhenCooldown = true -- Show a message in chat when a player attempts to switch to a ped too fast.
 
 Config.CanControlPlayers = true -- If attempting to switch peds to a player, it will control that player, probably confusing the shit out of them.
+Config.CanRandomlySwitchToPlayers = false -- Pressing ctrl without looking or aiming at a player will let you randomly switch to them.
 --[[END CONFIG]]
 
 
 
 function setPedModel(modelHash) -- Sets the player's ped model with the original camera position.
-    --local modelHash = GetHashKey(model)
     RequestModel(modelHash)
     local timer = GetGameTimer()
     while not HasModelLoaded(modelHash) do
@@ -40,7 +41,7 @@ function setPedModel(modelHash) -- Sets the player's ped model with the original
 end
 
 local allWeapons = {
-	[-1569615261] = "Unarmed",
+	--[-1569615261] = "Unarmed",
 	[2460120199] = "Antique Cavalry Dagger",
 	[2508868239] = "Baseball Bat",
 	[4192643659] = "Bottle",
@@ -355,7 +356,7 @@ function getRandomPed()
     local numPeds = 0
     for ped in EnumeratePeds() do
         RequestCollisionAtCoord(GetEntityCoords(ped).xyz)
-        if GetEntityCoords(ped).x ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).z ~= -100 and (not isPlayerPed(ped) or Config.CanControlPlayers) and ped ~= PlayerPedId() and (Config.RandomSwitchingExcludeAnimals and not isAnimalPed(ped)) and GetDistanceBetweenCoords(GetEntityCoords(PlayerPedId()), GetEntityCoords(ped)) < 200 then
+        if GetEntityCoords(ped).x ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).z ~= -100 and (not isPlayerPed(ped) or Config.CanControlPlayers and Config.CanRandomlySwitchToPlayers) and ped ~= PlayerPedId() and (Config.RandomSwitchingExcludeAnimals and not isAnimalPed(ped)) and GetDistanceBetweenCoords(GetEntityCoords(PlayerPedId()), GetEntityCoords(ped)) < 200 then
             numPeds = numPeds+1
         end
     end
@@ -364,7 +365,7 @@ function getRandomPed()
         local curPed = 0
         chosenPed = nil
         for ped in EnumeratePeds() do
-            if GetEntityCoords(ped).x ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).z ~= -100 and (not isPlayerPed(ped) or Config.CanControlPlayers) and ped ~= PlayerPedId() and  (Config.RandomSwitchingExcludeAnimals and not isAnimalPed(ped)) and GetDistanceBetweenCoords(GetEntityCoords(PlayerPedId()), GetEntityCoords(ped)) < 200 then
+            if GetEntityCoords(ped).x ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).z ~= -100 and (not isPlayerPed(ped) or Config.CanControlPlayers and Config.CanRandomlySwitchToPlayers) and ped ~= PlayerPedId() and  (Config.RandomSwitchingExcludeAnimals and not isAnimalPed(ped)) and GetDistanceBetweenCoords(GetEntityCoords(PlayerPedId()), GetEntityCoords(ped)) < 200 then
                 curPed = curPed+1
                 if curPed == stopAt then
                     return ped
@@ -609,7 +610,8 @@ RegisterNetEvent("DalraeTakeControl:RecievePermissions", function(canUse)
                 if not switchedPeds then
                     originalPedModel = {
                         ["ModelHash"] = GetEntityModel(PlayerPedId()), 
-                        ["Variations"] = getPedVariations(PlayerPedId())
+                        ["Variations"] = getPedVariations(PlayerPedId()),
+                        ["Weapons"] = getPedWeapons(PlayerPedId())
                     }
                     RequestModel(originalPedModel.ModelHash) -- To keep the ped in ram
                 end
@@ -779,11 +781,177 @@ RegisterNetEvent("DalraeTakeControl:TakeControlPlayer", function(player)
     end
 end)
 
+
+
+if Config.Debug then
+    local function DrawBoundingBox(box, r, g, b, a)
+        local function GetBoundingBoxPolyMatrix(box)
+            return {
+                { box[3], box[2], box[1] },
+                { box[4], box[3], box[1] },
+
+                { box[5], box[6], box[7] },
+                { box[5], box[7], box[8] },
+
+                { box[3], box[4], box[7] },
+                { box[8], box[7], box[4] },
+
+                { box[1], box[2], box[5] },
+                { box[6], box[5], box[2] },
+
+                { box[2], box[3], box[6] },
+                { box[3], box[7], box[6] },
+
+                { box[5], box[8], box[4] },
+                { box[5], box[4], box[1] }
+            }
+        end
+        local function GetBoundingBoxEdgeMatrix(box)
+            return {
+                { box[1], box[2] },
+                { box[2], box[3] },
+                { box[3], box[4] },
+                { box[4], box[1] },
+
+                { box[5], box[6] },
+                { box[6], box[7] },
+                { box[7], box[8] },
+                { box[8], box[5] },
+
+                { box[1], box[5] },
+                { box[2], box[6] },
+                { box[3], box[7] },
+                { box[4], box[8] }
+            }
+        end
+        local function DrawPolyMatrix(polyCollection, r, g, b, a)
+            for _,poly in pairs(polyCollection) do
+                local x1 = poly[1].x
+                local y1 = poly[1].y
+                local z1 = poly[1].z
+
+                local x2 = poly[2].x
+                local y2 = poly[2].y
+                local z2 = poly[2].z
+
+                local x3 = poly[3].x
+                local y3 = poly[3].y
+                local z3 = poly[3].z
+                DrawPoly(x1, y1, z1, x2, y2, z2, x3, y3, z3, r, g, b, a)
+            end
+        end
+        local function DrawEdgeMatrix(linesCollection, r, g, b, a)
+                for _,line in pairs(linesCollection) do
+                    local x1 = line[1].x
+                    local y1 = line[1].y
+                    local z1 = line[1].z
+    
+                    local x2 = line[2].x
+                    local y2 = line[2].y
+                    local z2 = line[2].z
+    
+                    DrawLine(x1, y1, z1, x2, y2, z2, r, g, b, a)
+                end
+            end
+        local polyMatrix = GetBoundingBoxPolyMatrix(box)
+        local edgeMatrix = GetBoundingBoxEdgeMatrix(box)
+        DrawPolyMatrix(polyMatrix, r, g, b, a)
+        DrawEdgeMatrix(edgeMatrix, 255, 255, 255, 255)
+    end
+    function GetEntityBoundingBox(entity)
+        local min, max = GetModelDimensions(GetEntityModel(entity))
+        local pad = 0.001
+        local retval = {
+            -- Bottom
+            vector3(GetOffsetFromEntityInWorldCoords(entity, min.x - pad, min.y - pad, min.z - pad)),
+            vector3(GetOffsetFromEntityInWorldCoords(entity, max.x + pad, min.y - pad, min.z - pad)),
+            vector3(GetOffsetFromEntityInWorldCoords(entity, max.x + pad, max.y + pad, min.z - pad)),
+            vector3(GetOffsetFromEntityInWorldCoords(entity, min.x - pad, max.y + pad, min.z - pad)),
+            -- Top
+            vector3(GetOffsetFromEntityInWorldCoords(entity, min.x - pad, min.y - pad, max.z + pad)),
+            vector3(GetOffsetFromEntityInWorldCoords(entity, max.x + pad, min.y - pad, max.z + pad)),
+            vector3(GetOffsetFromEntityInWorldCoords(entity, max.x + pad, max.y + pad, max.z + pad)),
+            vector3(GetOffsetFromEntityInWorldCoords(entity, min.x - pad, max.y + pad, max.z + pad))
+        }
+        return retval
+    end
+
+    local function drawDebugText(y, text)
+        local width, height, x = 1.0, 1.0, 1.0
+        SetTextFont(0)
+        SetTextProportional(0)
+        SetTextScale(0.5, 0.5)
+        SetTextColour(255, 0, 0, 255)
+        SetTextDropShadow(0, 0, 0, 0,255)
+        SetTextEdge(1, 0, 0, 0, 255)
+        SetTextDropShadow()
+        SetTextOutline()
+        SetTextCentre(true)
+        SetTextEntry("STRING")
+        AddTextComponentString(text)
+        DrawText(x - width/2, y - height/2 + 0.005)
+    end
+    local function drawEntityBox(entity, r,g,b,a)
+        local max, min = GetModelDimensions(GetEntityModel(entity))
+        local dim = max-min
+        local entityPosition = GetEntityCoords(entity)
+        local boundingBox = GetEntityBoundingBox(entity)
+        DrawBoundingBox(boundingBox, r,g,b,a)
+    end
+    CreateThread(function()
+        while true do
+            Wait(0)
+            local numPedsCan,numPedsCannot, numAnimals = 0,0,0
+            local lookingOrAimingAtEntity = getEntityAimingAt()
+            for ped in EnumeratePeds() do
+                RequestCollisionAtCoord(GetEntityCoords(ped).xyz)
+                if GetEntityCoords(ped).x ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).z ~= -100 and (not isPlayerPed(ped) or Config.CanControlPlayers and Config.CanRandomlySwitchToPlayers) and ped ~= PlayerPedId() and (Config.RandomSwitchingExcludeAnimals and not isAnimalPed(ped)) and GetDistanceBetweenCoords(GetEntityCoords(PlayerPedId()), GetEntityCoords(ped)) < 200 then
+                    if lookingOrAimingAtEntity == ped then
+                        drawEntityBox(ped, 255,255,0,75)
+                    else
+                        drawEntityBox(ped, 0,255,0,75)
+                    end
+                    numPedsCan = numPedsCan+1
+                else
+                    if lookingOrAimingAtEntity == ped then
+                        drawEntityBox(ped, 255,100,0,75)
+                    else
+                        drawEntityBox(ped, 255,0,0,75)
+                    end
+                    numPedsCannot = numPedsCannot+1
+                end
+                if isAnimalPed(ped) then
+                    numAnimals = numAnimals+1
+                end
+            end
+            if IsEntityAVehicle(lookingOrAimingAtEntity) then
+                if Config.CanAimAtVehicles then
+                    if DoesEntityExist(GetPedInVehicleSeat(lookingOrAimingAtEntity, -1)) then
+                        drawEntityBox(lookingOrAimingAtEntity, 255,255,0,75)
+                    else
+                        drawEntityBox(lookingOrAimingAtEntity, 200,100,0,75)
+                    end
+                end
+            end
+            drawDebugText(0.5, ("#Peds which can be switched to: %s"):format(numPedsCan))
+            drawDebugText(0.53, ("#Peds which cannot be switched to: %s"):format(numPedsCannot))
+            drawDebugText(0.56, ("# Animal peds: %s"):format(numAnimals))
+            
+            if lookingOrAimingAtEntity then
+                if IsPlayerFreeAiming() then
+
+                end
+            end
+        end
+    end)
+end
+
 AddEventHandler("onResourceStop", function(name)
     if name == GetCurrentResourceName() then
         if originalPedModel then
             setPedModel(PlayerPedId(), originalPedModel.ModelHash)
             setPedVariations(PlayerPedId(), originalPedModel.Variations)
+            giveWeaponsToPed(PlayerPedId(), originalPedModel.Weapons)
         end
     end
 end)
