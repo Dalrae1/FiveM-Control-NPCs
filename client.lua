@@ -19,6 +19,8 @@ Config.ShowWarningWhenCooldown = true -- Show a message in chat when a player at
 
 Config.CanControlPlayers = true -- If attempting to switch peds to a player, it will control that player, probably confusing the shit out of them.
 Config.CanRandomlySwitchToPlayers = false -- Pressing ctrl without looking or aiming at a player will let you randomly switch to them.
+
+Config.PreventSwitchToDeadPeds = true -- Lets the player switch to dead peds. Pretty useless.
 --[[END CONFIG]]
 
 
@@ -356,7 +358,7 @@ function getRandomPed()
     local numPeds = 0
     for ped in EnumeratePeds() do
         RequestCollisionAtCoord(GetEntityCoords(ped).xyz)
-        if GetEntityCoords(ped).x ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).z ~= -100 and (not isPlayerPed(ped) or Config.CanControlPlayers and Config.CanRandomlySwitchToPlayers) and ped ~= PlayerPedId() and (Config.RandomSwitchingExcludeAnimals and not isAnimalPed(ped)) and GetDistanceBetweenCoords(GetEntityCoords(PlayerPedId()), GetEntityCoords(ped)) < 200 then
+        if GetEntityCoords(ped).x ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).z ~= -100 and (not isPlayerPed(ped) or Config.CanControlPlayers and Config.CanRandomlySwitchToPlayers) and ped ~= PlayerPedId() and (Config.RandomSwitchingExcludeAnimals and not isAnimalPed(ped)) and GetDistanceBetweenCoords(GetEntityCoords(PlayerPedId()), GetEntityCoords(ped)) < 200 and (not Config.PreventSwitchToDeadPeds or GetEntityHealth(ped) > 0) then
             numPeds = numPeds+1
         end
     end
@@ -365,7 +367,7 @@ function getRandomPed()
         local curPed = 0
         chosenPed = nil
         for ped in EnumeratePeds() do
-            if GetEntityCoords(ped).x ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).z ~= -100 and (not isPlayerPed(ped) or Config.CanControlPlayers and Config.CanRandomlySwitchToPlayers) and ped ~= PlayerPedId() and  (Config.RandomSwitchingExcludeAnimals and not isAnimalPed(ped)) and GetDistanceBetweenCoords(GetEntityCoords(PlayerPedId()), GetEntityCoords(ped)) < 200 then
+            if GetEntityCoords(ped).x ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).y ~= 0 and GetEntityCoords(ped).z ~= -100 and (not isPlayerPed(ped) or Config.CanControlPlayers and Config.CanRandomlySwitchToPlayers) and ped ~= PlayerPedId() and  (Config.RandomSwitchingExcludeAnimals and not isAnimalPed(ped)) and GetDistanceBetweenCoords(GetEntityCoords(PlayerPedId()), GetEntityCoords(ped)) < 200 and (not Config.PreventSwitchToDeadPeds or GetEntityHealth(ped) > 0) then
                 curPed = curPed+1
                 if curPed == stopAt then
                     return ped
@@ -646,7 +648,7 @@ RegisterNetEvent("DalraeTakeControl:RecievePermissions", function(canUse)
                             ped = getRandomPed()
                         end
                         
-                        if DoesEntityExist(ped) and (not isPlayerPed(ped) or Config.CanControlPlayers) then
+                        if DoesEntityExist(ped) and (not isPlayerPed(ped) or Config.CanControlPlayers) and (not Config.PreventSwitchToDeadPeds or GetEntityHealth(ped) > 0) then
                             
                             lastSwitch = GetGameTimer()
                             local vector1 = GetGameplayCamCoord()
